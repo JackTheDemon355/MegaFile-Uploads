@@ -1,13 +1,14 @@
 {
-  "name": "megafile-upload",
+  "name": "megafile-uploads",
   "version": "1.0.0",
-  "description": "P2P WebRTC File Transfer",
+  "description": "PairDrop-style encrypted direct P2P tunnel transfer application",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "npx nodemon server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "socket.io": "^4.7.2"
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
   }
 }
