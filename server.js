@@ -7,7 +7,13 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
+// Serve public static frontend files
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Keep-alive health check route for UptimeRobot
+app.get('/ping', (req, res) => {
+    res.status(200).send('PONG');
+});
 
 let activePeers = 0;
 
@@ -35,4 +41,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
+server.listen(PORT, () => console.log(`🚀 MegaFile Upload running on port ${PORT}`));
