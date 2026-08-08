@@ -68,9 +68,8 @@
   .fi-meta { flex:1;min-width:0; }
   .fi-name { font-size:.88rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px; }
   .fi-size { font-size:.72rem;font-family:var(--fm);color:var(--muted); }
-  .fi-pw { height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:8px;display:none; }
+  .fi-pw { height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:8px; }
   .fi-pb { height:100%;width:0%;background:linear-gradient(90deg,var(--accent),#33ecff);transition:width .15s; }
-  .fi-st { font-size:.68rem;font-family:var(--fm);color:var(--muted);margin-top:4px;min-height:14px; }
 
   .upload-row { margin-top:20px;display:flex;justify-content:flex-end; }
   .btn-up { background:var(--accent);color:var(--bg);border:none;font-family:var(--fd);font-size:1.2rem;letter-spacing:3px;padding:14px 40px;cursor:pointer;border-radius:3px;transition:all .2s;display:flex;align-items:center;gap:10px; }
@@ -118,7 +117,7 @@
   </section>
 
   <section class="upload-section">
-    <div class="drop-zone" id="dz">
+    <div class="drop-zone" id="dz" onclick="document.getElementById('fileInput').click()">
       <input type="file" id="fileInput" multiple>
       <div class="dz-icon">
         <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
@@ -129,7 +128,7 @@
       </div>
       <div class="dz-label">Drag & drop files here</div>
       <div class="dz-sub">Any file type · Direct WebRTC Peer Tunnel</div>
-      <button class="btn-browse" onclick="document.getElementById('fileInput').click()">Browse Files</button>
+      <button class="btn-browse" type="button">Browse Files</button>
     </div>
 
     <div class="room-box">
@@ -160,7 +159,7 @@
 </div>
 
 <footer>
-  <div class="wrap">MEGAFILE UPLOAD · PairDrop Architecture</div>
+  <div class="wrap">MEGAFILE UPLOADS · PairDrop Architecture</div>
 </footer>
 
 <script>
@@ -283,7 +282,7 @@
     };
   }
 
-  // Handle Drag/Drop and File Selection
+  // Handle Drag/Drop & File Queuing
   const fi = document.getElementById('fileInput');
   fi.addEventListener('change', () => {
     selectedFiles = Array.from(fi.files);
@@ -329,6 +328,11 @@
         reader.onload = (e) => {
           dc.send(e.target.result);
           offset += e.target.result.byteLength;
+
+          const progress = Math.min(100, Math.round((offset / file.size) * 100));
+          const pb = document.getElementById(`pb-${file.name}`);
+          if (pb) pb.style.width = progress + '%';
+
           if (offset < file.size) {
             readNextChunk();
           }
