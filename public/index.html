@@ -1,117 +1,235 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MegaFile Upload</title>
-    <script src="/socket.io/socket.io.js"></script>
-    <style>
-        :root {
-            --bg-color: #0f172a;
-            --card-bg: #1e293b;
-            --accent: #38bdf8;
-            --text-color: #f8fafc;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MegaFile — Direct P2P Transfer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="/socket.io/socket.io.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0f; --surface: #12121a; --border: #1e1e2e;
+    --accent: #00e5ff; --accent2: #ff3d6b; --text: #e8e8f0;
+    --muted: #5a5a78; --success: #00ffa3;
+    --fd: 'Bebas Neue', sans-serif; --fm: 'DM Mono', monospace; --fb: 'DM Sans', sans-serif;
+  }
+  html { scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--text); font-family: var(--fb); min-height: 100vh; overflow-x: hidden; }
+  body::before { content:''; position:fixed; inset:0; background-image:linear-gradient(rgba(0,229,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,.03) 1px,transparent 1px); background-size:40px 40px; pointer-events:none; z-index:0; }
+  
+  .dev-mode {
+    --bg: #000000 !important;
+    --surface: #051a05 !important;
+    --border: #005511 !important;
+    --accent: #00ff66 !important;
+    --text: #00ff66 !important;
+    --muted: #008833 !important;
+  }
 
-        body {
-            margin: 0;
-            font-family: monospace, sans-serif;
-            background: var(--bg-color);
-            color: var(--text-color);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
-        }
+  .orb { position:fixed; border-radius:50%; filter:blur(120px); pointer-events:none; z-index:0; }
+  .orb-1 { width:600px;height:600px;background:rgba(0,229,255,.06);top:-200px;left:-200px; }
+  .orb-2 { width:400px;height:400px;background:rgba(255,61,107,.05);bottom:-100px;right:-100px; }
+  .wrap { max-width:860px;margin:0 auto;padding:0 24px;position:relative;z-index:1; }
 
-        h1 { margin-top: 2rem; color: var(--accent); }
+  header { padding:36px 0 0;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap; }
+  .logo { font-family:var(--fd);font-size:2.2rem;letter-spacing:3px;color:var(--text);text-decoration:none;position:relative;flex-shrink:0; }
+  .logo span { color:var(--accent); }
+  .logo::after { content:'';position:absolute;bottom:-2px;left:0;width:100%;height:2px;background:linear-gradient(90deg,var(--accent),transparent); }
 
-        /* Dev Console Overlay */
-        #devHUD {
-            position: fixed;
-            bottom: 10px;
-            left: 10px;
-            background: rgba(0, 0, 0, 0.85);
-            border: 1px solid #333;
-            padding: 10px;
-            font-size: 0.75rem;
-            border-radius: 6px;
-            color: #00ff66;
-            max-width: 300px;
-        }
+  .hero { padding:60px 0 40px;text-align:center; }
+  .eyebrow { font-family:var(--fm);font-size:.75rem;color:var(--accent);letter-spacing:4px;text-transform:uppercase;margin-bottom:20px;opacity:0;animation:up .6s .1s ease forwards; }
+  h1 { font-family:var(--fd);font-size:clamp(3rem,10vw,6.5rem);letter-spacing:4px;line-height:.95;margin-bottom:24px;opacity:0;animation:up .6s .2s ease forwards; }
+  h1 .outline { -webkit-text-stroke:1px var(--text);color:transparent; }
+  .sub { font-size:1rem;color:var(--muted);font-weight:300;max-width:460px;margin:0 auto;line-height:1.7;opacity:0;animation:up .6s .3s ease forwards; }
 
-        /* Easter Egg Matrix FX */
-        .matrix-mode {
-            --bg-color: #000000 !important;
-            --accent: #00ff66 !important;
-            --card-bg: #051a05 !important;
-            --text-color: #00ff66 !important;
-        }
+  .upload-section { padding:0 0 60px;opacity:0;animation:up .6s .4s ease forwards; }
+  .drop-zone { border:1.5px dashed var(--border);border-radius:8px;padding:50px 40px;text-align:center;cursor:pointer;transition:all .25s;background:var(--surface);position:relative;overflow:hidden; }
+  .drop-zone::before { content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(0,229,255,.06),transparent 70%);opacity:0;transition:opacity .3s; }
+  .drop-zone:hover::before,.drop-zone.over::before { opacity:1; }
+  .drop-zone:hover,.drop-zone.over { border-color:var(--accent);border-style:solid;transform:translateY(-2px); }
+  .dz-icon { width:52px;height:52px;margin:0 auto 18px; }
+  .dz-icon svg { width:100%;height:100%;stroke:var(--accent);stroke-width:1.5;fill:none;transition:transform .3s; }
+  .drop-zone:hover .dz-icon svg { transform:translateY(-4px); }
+  .dz-label { font-size:1.05rem;font-weight:500;margin-bottom:8px; }
+  .dz-sub { font-size:.82rem;color:var(--muted);font-family:var(--fm); }
+  #fileInput { display:none; }
+  .btn-browse { margin-top:24px;display:inline-flex;align-items:center;gap:8px;background:transparent;border:1.5px solid var(--accent);color:var(--accent);font-family:var(--fm);font-size:.8rem;letter-spacing:2px;text-transform:uppercase;padding:10px 24px;cursor:pointer;border-radius:3px;transition:all .2s;position:relative;z-index:1; }
+  .btn-browse:hover { background:var(--accent);color:var(--bg); }
 
-        .radar-node {
-            width: 120px;
-            height: 120px;
-            background: var(--card-bg);
-            border: 2px dashed var(--accent);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 3rem 0;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
+  .room-box { margin-top:14px;background:var(--surface);border:1px solid rgba(0,229,255,.2);border-radius:6px;padding:16px 18px;display:flex;gap:10px;align-items:center; }
+  .room-in { flex:1;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:4px;outline:none;font-family:var(--fm);font-size:.75rem;color:var(--accent);padding:10px 12px; }
 
-        .radar-node:hover { transform: scale(1.1); }
-    </style>
+  .queue { margin-top:14px;display:flex;flex-direction:column;gap:10px; }
+  .fi { background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:14px 18px;display:flex;align-items:flex-start;gap:14px; }
+  .fi-ico { width:34px;height:34px;background:rgba(0,229,255,.08);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px; }
+  .fi-ico svg { width:16px;height:16px;stroke:var(--accent);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round; }
+  .fi-meta { flex:1;min-width:0; }
+  .fi-name { font-size:.88rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px; }
+  .fi-size { font-size:.72rem;font-family:var(--fm);color:var(--muted); }
+  .fi-pw { height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:8px;display:none; }
+  .fi-pb { height:100%;width:0%;background:linear-gradient(90deg,var(--accent),#33ecff);transition:width .15s; }
+  .fi-st { font-size:.68rem;font-family:var(--fm);color:var(--muted);margin-top:4px;min-height:14px; }
+
+  .upload-row { margin-top:20px;display:flex;justify-content:flex-end; }
+  .btn-up { background:var(--accent);color:var(--bg);border:none;font-family:var(--fd);font-size:1.2rem;letter-spacing:3px;padding:14px 40px;cursor:pointer;border-radius:3px;transition:all .2s;display:flex;align-items:center;gap:10px; }
+  .btn-up:hover { background:#33ecff;transform:translateY(-1px);box-shadow:0 8px 30px rgba(0,229,255,.25); }
+
+  #devHUD {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    background: rgba(0, 0, 0, 0.85);
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    font-size: 0.75rem;
+    font-family: var(--fm);
+    border-radius: 6px;
+    color: var(--accent);
+    z-index: 100;
+    display: none;
+  }
+  #devHUD.visible { display: block; }
+
+  .stats { display:flex;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin:0 0 80px; }
+  .stat { flex:1;padding:24px 20px;text-align:center;border-right:1px solid var(--border); }
+  .stat:last-child { border-right:none; }
+  .sv { font-family:var(--fd);font-size:2.2rem;letter-spacing:2px;color:var(--accent);display:block; }
+  .sl { font-family:var(--fm);font-size:.65rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-top:2px; }
+
+  footer { border-top:1px solid var(--border);padding:28px 0;text-align:center;font-family:var(--fm);font-size:.68rem;color:var(--muted);letter-spacing:1px; }
+
+  @keyframes up { from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)} }
+</style>
 </head>
 <body>
+<div class="orb orb-1"></div><div class="orb orb-2"></div>
 
-    <h1>⚡ MegaFile Upload</h1>
-    <p>P2P Encrypted File Tunnel</p>
+<div class="wrap">
+  <header>
+    <a class="logo" href="#">MEGA<span>FILE</span></a>
+  </header>
 
-    <div class="radar-node" onclick="triggerEasterEgg()" id="node">
-        <span>Click Me 🚀</span>
+  <section class="hero">
+    <p class="eyebrow">// PairDrop-Style P2P Tunnel</p>
+    <h1>DROP IT.<br><span class="outline">SHARE IT.</span></h1>
+    <p class="sub">Direct browser-to-browser encrypted transfers with zero file limits and zero cloud storage.</p>
+  </section>
+
+  <section class="upload-section">
+    <div class="drop-zone" id="dz">
+      <input type="file" id="fileInput" multiple>
+      <div class="dz-icon">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <div class="dz-label">Drag & drop files here</div>
+      <div class="dz-sub">Any file type · Direct WebRTC Peer Tunnel</div>
+      <button class="btn-browse" onclick="document.getElementById('fileInput').click()">Browse Files</button>
     </div>
 
-    <!-- Dev Tools HUD -->
-    <div id="devHUD">
-        <div><strong>🛠 Dev Tools</strong></div>
-        <div>Socket Status: <span id="sockStatus">Connecting...</span></div>
-        <div>Active Network Peers: <span id="peerCount">0</span></div>
-        <div>WebRTC State: <span id="rtcState">Idle</span></div>
-        <div style="margin-top:5px; color:#aaa;">Hint: Press <code>`</code> (tilde) to trigger Matrix mode.</div>
+    <div class="room-box">
+      <input class="room-in" id="roomCode" type="text" placeholder="Enter Room Key (Default: public-room)">
+      <button class="btn-browse" style="margin:0;" onclick="joinCustomRoom()">Join Room</button>
     </div>
 
-    <script>
-        const socket = io();
-        let eggClicks = 0;
+    <div class="queue" id="queue"></div>
+    <div class="upload-row" id="upRow" style="display:none">
+      <button class="btn-up" id="upBtn">START TRANSFER</button>
+    </div>
+  </section>
 
-        socket.on('connect', () => {
-            document.getElementById('sockStatus').innerText = "Connected 🟢";
-        });
+  <div class="stats">
+    <div class="stat"><span class="sv" id="peerCount">0</span><div class="sl">Connected Peers</div></div>
+    <div class="stat"><span class="sv">P2P</span><div class="sl">WebRTC Mode</div></div>
+    <div class="stat"><span class="sv">0 B</span><div class="sl">Server Storage</div></div>
+    <div class="stat"><span class="sv">∞</span><div class="sl">File Limit</div></div>
+  </div>
+</div>
 
-        socket.on('dev-stats', (data) => {
-            document.getElementById('peerCount').innerText = data.peers;
-        });
+<!-- Developer Tools HUD (Toggled via Tilde Key) -->
+<div id="devHUD">
+  <div><strong>🛠 Dev Tools HUD</strong></div>
+  <div>Socket Status: <span id="sockStatus">Connecting...</span></div>
+  <div>Active Room Peers: <span id="hudPeers">0</span></div>
+  <div>WebRTC Channel: <span id="rtcState">Idle</span></div>
+</div>
 
-        // Easter Egg 1: Click Node 5 Times
-        function triggerEasterEgg() {
-            eggClicks++;
-            if (eggClicks === 5) {
-                alert("🎉 Dev Mode Unlocked! You found the hidden trigger.");
-                document.body.classList.toggle('matrix-mode');
-                eggClicks = 0;
-            }
-        }
+<footer>
+  <div class="wrap">MEGAFILE UPLOAD · PairDrop Architecture</div>
+</footer>
 
-        // Easter Egg 2: Press Tilde (`) Key for Matrix Mode
-        window.addEventListener('keydown', (e) => {
-            if (e.key === '`') {
-                document.body.classList.toggle('matrix-mode');
-                console.log("🕹️ Toggled Matrix Theme!");
-            }
-        });
-    </script>
+<script>
+  const socket = io();
+  let selectedFiles = [];
+  let peerConnection;
+  let dataChannel;
+
+  // Toggle Dev Tools HUD via Tilde Key (`)
+  window.addEventListener('keydown', (e) => {
+    if (e.key === '`') {
+      const hud = document.getElementById('devHUD');
+      hud.classList.toggle('visible');
+      document.body.classList.toggle('dev-mode');
+    }
+  });
+
+  socket.on('connect', () => {
+    document.getElementById('sockStatus').innerText = "Connected 🟢";
+  });
+
+  socket.on('dev-stats', (data) => {
+    document.getElementById('peerCount').innerText = data.peers;
+    document.getElementById('hudPeers').innerText = data.peers;
+  });
+
+  function joinCustomRoom() {
+    const room = document.getElementById('roomCode').value.trim() || "public-room";
+    socket.emit('join-room', room);
+    alert(`Joined Room: ${room}`);
+  }
+
+  // File Queue Management
+  const fi = document.getElementById('fileInput');
+  fi.addEventListener('change', () => {
+    selectedFiles = Array.from(fi.files);
+    renderQueue();
+  });
+
+  function renderQueue() {
+    const qEl = document.getElementById('queue');
+    const upRow = document.getElementById('upRow');
+    qEl.innerHTML = '';
+    
+    selectedFiles.forEach((file) => {
+      const el = document.createElement('div');
+      el.className = 'fi';
+      el.innerHTML = `
+        <div class="fi-ico">
+          <svg viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+        </div>
+        <div class="fi-meta">
+          <div class="fi-name">${file.name}</div>
+          <div class="fi-size">${fmt(file.size)}</div>
+          <div class="fi-pw"><div class="fi-pb" style="width: 0%"></div></div>
+        </div>
+      `;
+      qEl.appendChild(el);
+    });
+
+    upRow.style.display = selectedFiles.length > 0 ? 'flex' : 'none';
+  }
+
+  function fmt(b) {
+    if (!b) return '0 B';
+    if (b < 1024) return b + ' B';
+    if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+    return (b / 1048576).toFixed(1) + ' MB';
+  }
+</script>
 </body>
 </html>
