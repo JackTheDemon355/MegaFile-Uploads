@@ -166,10 +166,13 @@
 <script>
   const socket = io();
   let selectedFiles = [];
-  let peerConnection;
-  let dataChannel;
+  let peerConnections = {};
+  let dataChannels = {};
+  let currentRoom = "public-room";
 
-  // Toggle Dev Tools HUD via Tilde Key (`)
+  const CHUNK_SIZE = 16384; // 16KB WebRTC chunk size
+
+  // Tilde Key (`) Dev HUD Toggle
   window.addEventListener('keydown', (e) => {
     if (e.key === '`') {
       const hud = document.getElementById('devHUD');
@@ -180,6 +183,7 @@
 
   socket.on('connect', () => {
     document.getElementById('sockStatus').innerText = "Connected 🟢";
+    joinCustomRoom();
   });
 
   socket.on('dev-stats', (data) => {
@@ -188,12 +192,98 @@
   });
 
   function joinCustomRoom() {
-    const room = document.getElementById('roomCode').value.trim() || "public-room";
-    socket.emit('join-room', room);
-    alert(`Joined Room: ${room}`);
+    currentRoom = document.getElementById('roomCode').value.trim() || "public-room";
+    socket.emit('join-room', currentRoom);
   }
 
-  // File Queue Management
+  // Handle Incoming Peer Connections
+  socket.on('peer-joined', async ({ peerId }) => {
+    document.getElementById('rtcState').innerText = "Connecting...";
+    createPeerConnection(peerId, true);
+  });
+
+  socket.on('offer', async ({ sdp, caller }) => {
+    const pc = createPeerConnection(caller, false);
+    await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    socket.emit('answer', { target: caller, sdp: answer });
+  });
+
+  socket.on('answer', async ({ sdp, responder }) => {
+    const pc = peerConnections[responder];
+    if (pc) await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+  });
+
+  socket.on('ice-candidate', async ({ candidate, sender }) => {
+    const pc = peerConnections[sender];
+    if (pc) await pc.addIceCandidate(new RTCIceCandidate(candidate));
+  });
+
+  function createPeerConnection(peerId, isInitiator) {
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    });
+
+    peerConnections[peerId] = pc;
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        socket.emit('ice-candidate', { target: peerId, candidate: event.candidate });
+      }
+    };
+
+    if (isInitiator) {
+      const dc = pc.createDataChannel('fileTransfer');
+      setupDataChannel(dc, peerId);
+      pc.createOffer().then((offer) => {
+        pc.setLocalDescription(offer);
+        socket.emit('offer', { target: peerId, sdp: offer });
+      });
+    } else {
+      pc.ondatachannel = (event) => {
+        setupDataChannel(event.channel, peerId);
+      };
+    }
+
+    return pc;
+  }
+
+  function setupDataChannel(dc, peerId) {
+    dataChannels[peerId] = dc;
+    dc.binaryType = 'arraybuffer';
+
+    dc.onopen = () => {
+      document.getElementById('rtcState').innerText = "Connected 🟢";
+    };
+
+    let receivedBuffers = [];
+    let receivedSize = 0;
+    let fileMeta = null;
+
+    dc.onmessage = (event) => {
+      if (typeof event.data === 'string') {
+        fileMeta = JSON.parse(event.data);
+        receivedBuffers = [];
+        receivedSize = 0;
+      } else {
+        receivedBuffers.push(event.data);
+        receivedSize += event.data.byteLength;
+
+        if (fileMeta && receivedSize >= fileMeta.size) {
+          const blob = new Blob(receivedBuffers);
+          const downloadUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = downloadUrl;
+          a.download = fileMeta.name;
+          a.click();
+          receivedBuffers = [];
+        }
+      }
+    };
+  }
+
+  // Handle Drag/Drop and File Selection
   const fi = document.getElementById('fileInput');
   fi.addEventListener('change', () => {
     selectedFiles = Array.from(fi.files);
@@ -215,13 +305,43 @@
         <div class="fi-meta">
           <div class="fi-name">${file.name}</div>
           <div class="fi-size">${fmt(file.size)}</div>
-          <div class="fi-pw"><div class="fi-pb" style="width: 0%"></div></div>
+          <div class="fi-pw"><div class="fi-pb" id="pb-${file.name}"></div></div>
         </div>
       `;
       qEl.appendChild(el);
     });
 
     upRow.style.display = selectedFiles.length > 0 ? 'flex' : 'none';
+  }
+
+  document.getElementById('upBtn').addEventListener('click', () => {
+    selectedFiles.forEach(file => sendFile(file));
+  });
+
+  function sendFile(file) {
+    Object.values(dataChannels).forEach(dc => {
+      if (dc.readyState === 'open') {
+        dc.send(JSON.stringify({ name: file.name, size: file.size }));
+        
+        const reader = new FileReader();
+        let offset = 0;
+
+        reader.onload = (e) => {
+          dc.send(e.target.result);
+          offset += e.target.result.byteLength;
+          if (offset < file.size) {
+            readNextChunk();
+          }
+        };
+
+        const readNextChunk = () => {
+          const slice = file.slice(offset, offset + CHUNK_SIZE);
+          reader.readAsArrayBuffer(slice);
+        };
+
+        readNextChunk();
+      }
+    });
   }
 
   function fmt(b) {
