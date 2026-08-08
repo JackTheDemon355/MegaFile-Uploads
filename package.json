@@ -1,7 +1,7 @@
 {
   "name": "megafile-upload",
   "version": "1.0.0",
-  "description": "P2P File Transfer with WebRTC and Socket.io",
+  "description": "P2P WebRTC File Transfer",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
