@@ -26,5 +26,5 @@ Files stream directly chunk-by-chunk between devices with zero server storage, k
 
 1. **Clone the repository:**
    ```bash
-   git clone [https://github.com/YOUR_USERNAME/megafile-upload.git](https://github.com/YOUR_USERNAME/megafile-upload.git)
-   cd megafile-upload
+   git clone https://github.com/JackTheDemon355/MegaFile-Uploads.git
+   cd MegaFile-Uploads
