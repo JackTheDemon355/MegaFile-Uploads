@@ -25,9 +25,12 @@ io.on('connection', (socket) => {
   joinRoom(socket, currentRoom);
   broadcastStats();
 
-  // Handle Room Joining / Switch
-  socket.on('join-room', ({ roomName, passcode }) => {
-    const targetRoom = roomName.trim() || 'public-room';
+// Handle Room Joining / Switch
+  socket.on('join-room', (data = {}) => {
+    // Safely extract roomName whether passed as an object or a plain string
+    const rawRoom = typeof data === 'object' ? data.roomName : data;
+    const targetRoom = (typeof rawRoom === 'string' && rawRoom.trim()) ? rawRoom.trim() : 'public-room';
+    const passcode = typeof data === 'object' ? data.passcode : null;
 
     // Verify passcode if room has one set
     if (roomPasscodes.has(targetRoom)) {
